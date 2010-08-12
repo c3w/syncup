@@ -1,0 +1,18 @@
+syncup v0.1
+http://github.com/c3w/syncup
+
+This script requires a skeleton structure as follows
+(pardon my ascii directory tree)
+BACKUP_ROOT
+          + [remote fully-qualified-host-name]
+          |                                  + [rsync sharename]
+          |                                  + [rsync sharename]
+          |                                  + [rsync sharename]
+          + [additional hosts, like above    ]
+                                             + [rsync sharename]
+                                             + [rsync sharename]
+
+The upshot of this is that you only need to create a directory to add it
+to the backup list.
+
+Chas.

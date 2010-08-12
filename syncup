@@ -1,0 +1,148 @@
+#!/bin/sh
+
+###
+## FileNAME   : `syncup`
+## Requires   : `bash` `rsync`
+##
+## Author     : Chas Wareing <c3w@juicypop.net>
+##
+## Purpose    : BackUP remote hosts via rsync
+##
+## Use With   : a remote rsync server & skeleton directory structure
+
+
+###
+## NOTES
+##
+## This script requires a skeleton structure as follows
+## (pardon my ascii directory tree)
+## BACKUP_ROOT
+##           + [remote fully-qualified-host-name]
+##           |                                  + [rsync sharename]
+##           |                                  + [rsync sharename]
+##           |                                  + [rsync sharename]
+##           + [additional hosts, like above    ]
+##                                              + [rsync sharename]
+##                                              + [rsync sharename]
+##
+## The upshot of this is that you only need to create a directory to add it
+## to the backup list.
+
+
+###
+## Initialization
+## (modify as needed)
+## (directories should have training slashes)
+##
+BACKUP_ROOT=/www/syncup/servers/
+BACKUP_ETC=/www/syncup/etc/
+RSYNC_USER=syncup              #default user
+#export RSYNC_PASSWORD
+
+###
+## Check for alternate username 
+##
+function  checkUsr {
+if [ -f $BACKUP_ETC/$1_usr ]; then
+	echo $BACKUP_ETC$1_usr found.  
+        RSYNC_USER=`cat $BACKUP_ETC$1_usr`
+	echo Using defined user: $RSYNC_USER 
+	return 0 
+else
+	echo Using default user: $RSYNC_USER
+	return 0 
+fi
+}
+
+###
+## Verify Local Directory
+##
+function verifyDir {
+echo Verifying $BACKUP_ROOT$1
+if [ ! -d $BACKUP_ROOT$1 ]; then
+	echo $BACKUP_ROOT$1 not found.  Read syncup script for details
+	exit
+#	return 1
+else
+	echo Directory seems to be in order.  Congratulations
+	return 0
+fi
+}
+
+###
+## Start BACKUP
+##
+function hostBackup { ## check structure & Initiate backup
+echo Locally Syncing Host :: $1
+echo "" >> /tmp/syncup.log
+echo "/////////////////////" >> /tmp/syncup.log
+echo "[ $1 ]" >> /tmp/syncup.log
+pushd $BACKUP_ROOT$1
+for sharename in *
+        do
+        {
+	if [ -d $sharename ]; then
+#	echo \#\#\#
+#	echo \#\# BACKING UP $1::$sharename
+#	echo \#\#
+		cd $sharename
+		rsync -avv --password-file $BACKUP_ETC$1_pwd --timeout=500 --delete $RSYNC_USER@$1::$sharename . 2>../$sharename.err 1>../$sharename.log
+		cd ..
+	echo $sharename >> /tmp/syncup.log
+	tail -2 $sharename.log >>/tmp/syncup.log
+	echo "" >>/tmp/syncup.log
+	fi
+        }
+done
+popd
+
+
+}
+
+###
+## SHOW OPTIONS
+##
+function showOptions { ## Display Command-Line Options and Exit
+        cat << EOF
+Usage: syncup [fully qualified hostname]
+
+Example: \`syncup production1\`
+
+EOF
+exit
+}
+
+
+###
+## RUNTIME START HERE
+##
+#if [ ! $1 ]; then showOptions; fi
+if [ $1 ]; then
+ hostlist=$@
+else
+ pushd ${BACKUP_ROOT}
+ hostlist=$(ls)
+ popd
+fi
+
+echo "Subject: RSync Backups" > /tmp/syncup.log; echo "" >> /tmp/syncup.log
+echo "NSX RSync LOG" >> /tmp/syncup.log
+echo "" >> /tmp/syncup.log
+
+pushd $BACKUP_ROOT
+for host in $hostlist
+do
+{
+if [ -d $host ]; then
+        checkUsr $host
+	verifyDir $host
+	if [ ! -f /data/tmp/$host\_LCK ]; then
+		hostBackup $host
+	fi
+fi
+}
+done
+popd
+#if [ verifyDir $1 ] ;  then hostBackup $1; fi
+
+#/usr/sbin/sendmail me@domain.tld  < /tmp/syncup.log
